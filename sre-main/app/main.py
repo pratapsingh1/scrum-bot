@@ -6,6 +6,8 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi import Request
 from fastapi.responses import JSONResponse
+from fastapi.responses import RedirectResponse
+
 
 from slack_sdk import WebClient
 
@@ -23,10 +25,12 @@ app = FastAPI()
 
 
 @app.get("/")
-def home():
-    return {
-        "message": "AI Scrum Master Bot Running"
-    }
+async def home():
+
+    return RedirectResponse(
+        url="https://app.slack.com/client/T0B5TU4DY49/D0B5S5NQ8G2",
+        status_code=302
+    )
 
 
 @app.post("/slack/events")
