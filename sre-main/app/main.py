@@ -224,7 +224,7 @@ async def slack_events(request: Request):
         if text.lower() == "launch ai assistant":
 
             assistant_url = (
-                "https://scrum-bot-bkaz.onrender.com/assistant"
+                "https://ai-sprint-planner.onrender.com/assistant"
             )
 
             client.chat_postMessage(
