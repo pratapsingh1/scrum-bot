@@ -1,4 +1,3 @@
-```python
 import os
 import json
 
@@ -69,4 +68,4 @@ def save_user_message(user_id, message):
 def get_user_history(user_id):
 
     return load_memory(user_id)
-```
+
