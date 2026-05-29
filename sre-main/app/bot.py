@@ -52,24 +52,50 @@ def generate_followup_question(user_id, user_message):
 
     history = get_user_history(user_id)
 
-    history_text = "\n".join(history[-5:])
+    developer_messages = [
+        msg for msg in history
+        if msg.startswith("Developer:")
+    ]
 
-    blocker_detected = detect_blocker(user_message)
-
-    prompt = SCRUM_MASTER_PROMPT.format(
-        history=history_text,
-        user_message=user_message,
-        blocker_detected=blocker_detected
-    )
-
-    response = model.generate_content(prompt)
-
-    reply = response.text.strip()
+    question_count = len(developer_messages)
 
     save_user_message(
         user_id,
         f"Developer: {user_message}"
     )
+
+    # Question 1 completed
+    if question_count == 0:
+        reply = (
+            "Thanks. Do you have any blockers "
+            "or challenges currently?"
+        )
+
+    # Question 2 completed
+    elif question_count == 1:
+
+        if detect_blocker(user_message):
+
+            reply = (
+                "Understood. Please share the blocker "
+                "and I'll note it in today's standup."
+            )
+
+        else:
+
+            reply = (
+                "Great. Is there any support needed "
+                "from the team today?"
+            )
+
+    # Question 3 completed
+    else:
+
+        reply = (
+            "✅ Thanks for the update.\n\n"
+            "Your standup has been recorded.\n\n"
+            "Have a productive day!"
+        )
 
     save_user_message(
         user_id,
@@ -77,6 +103,7 @@ def generate_followup_question(user_id, user_message):
     )
 
     return reply
+
 
 
 # ---------------------------------------------------
