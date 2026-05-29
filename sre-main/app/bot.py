@@ -1,4 +1,3 @@
-````python
 import os
 import json
 import google.generativeai as genai
@@ -164,4 +163,4 @@ Return proper readable response.
     response = model.generate_content(prompt)
 
     return response.text.strip()
-````
+
