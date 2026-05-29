@@ -1,14 +1,18 @@
 import os
 import json
+from datetime import datetime
 
 MEMORY_DIR = "memory"
 
 if not os.path.exists(MEMORY_DIR):
     os.makedirs(MEMORY_DIR)
 
+# Active standup sessions
+ACTIVE_SESSIONS = {}
+
 
 # ---------------------------------------------------
-# GET USER FILE
+# FILE HELPERS
 # ---------------------------------------------------
 
 def get_user_file(user_id):
@@ -20,7 +24,7 @@ def get_user_file(user_id):
 
 
 # ---------------------------------------------------
-# LOAD MEMORY
+# HISTORY STORAGE
 # ---------------------------------------------------
 
 def load_memory(user_id):
@@ -35,10 +39,6 @@ def load_memory(user_id):
         return json.load(f)
 
 
-# ---------------------------------------------------
-# SAVE MEMORY
-# ---------------------------------------------------
-
 def save_memory(user_id, memory):
 
     file_path = get_user_file(user_id)
@@ -48,24 +48,58 @@ def save_memory(user_id, memory):
         json.dump(memory, f, indent=2)
 
 
-# ---------------------------------------------------
-# SAVE USER MESSAGE
-# ---------------------------------------------------
-
-def save_user_message(user_id, message):
-
-    memory = load_memory(user_id)
-
-    memory.append(message)
-
-    save_memory(user_id, memory)
-
-
-# ---------------------------------------------------
-# GET USER HISTORY
-# ---------------------------------------------------
-
 def get_user_history(user_id):
 
     return load_memory(user_id)
 
+
+def save_standup_record(
+    user_id,
+    today_work,
+    blockers,
+    support
+):
+
+    history = load_memory(user_id)
+
+    history.append({
+        "date": datetime.now().strftime("%Y-%m-%d"),
+        "today_work": today_work,
+        "blockers": blockers,
+        "support": support
+    })
+
+    save_memory(user_id, history)
+
+
+# ---------------------------------------------------
+# SESSION MANAGEMENT
+# ---------------------------------------------------
+
+def start_session(user_id):
+
+    ACTIVE_SESSIONS[user_id] = {
+        "stage": 1,
+        "today_work": "",
+        "blockers": "",
+        "support": ""
+    }
+
+
+def get_session(user_id):
+
+    return ACTIVE_SESSIONS.get(user_id)
+
+
+def update_session(user_id, key, value):
+
+    if user_id not in ACTIVE_SESSIONS:
+        return
+
+    ACTIVE_SESSIONS[user_id][key] = value
+
+
+def end_session(user_id):
+
+    if user_id in ACTIVE_SESSIONS:
+        del ACTIVE_SESSIONS[user_id]

@@ -15,8 +15,12 @@ from app.bot import (
     modify_sprint
 )
 
-from app.slack_blocks import create_standup_block
-from app.memory import save_user_message, load_memory, save_memory
+from app.memory import (
+    load_memory,
+    save_memory,
+    get_user_history,
+    start_session
+)
 
 from app.jira import (
     create_jira_issues_from_structure,
@@ -74,6 +78,7 @@ async def generate(prompt: str = Form(...)):
     jira_response = None
 
     if jira_is_configured():
+
         jira_response = create_jira_issues_from_structure(
             structure
         )
@@ -112,6 +117,7 @@ async def slack_events(request: Request):
     data = await request.json()
 
     if "challenge" in data:
+
         return JSONResponse({
             "challenge": data["challenge"]
         })
@@ -124,30 +130,97 @@ async def slack_events(request: Request):
     ):
 
         user_id = event.get("user")
-        text = event.get("text")
+        text = event.get("text", "")
         channel_id = event.get("channel")
 
+        # -------------------------
         # START STANDUP
+        # -------------------------
+
         if text.lower() == "start standup":
 
-            blocks = create_standup_block(
-                user_name="Developer",
-                tasks=[
-                    "UI Automation",
-                    "Notification Testing",
-                    "Slack Integration"
-                ]
-            )
+            start_session(user_id)
 
             client.chat_postMessage(
                 channel=channel_id,
-                text="Daily Standup",
-                blocks=blocks
+                text=(
+                    "👋 Daily Standup\n\n"
+                    "What are you working on today?"
+                )
             )
 
-            return JSONResponse({"status": "sent"})
+            return JSONResponse({"status": "standup_started"})
 
+        # -------------------------
+        # SHOW YESTERDAY
+        # -------------------------
+
+        if text.lower() == "show yesterday update":
+
+            history = get_user_history(user_id)
+
+            if history:
+
+                latest = history[-1]
+
+                client.chat_postMessage(
+                    channel=channel_id,
+                    text=(
+                        f"📋 Yesterday Update\n\n"
+                        f"Work: {latest.get('today_work', 'N/A')}\n"
+                        f"Blockers: {latest.get('blockers', 'N/A')}\n"
+                        f"Support: {latest.get('support', 'N/A')}"
+                    )
+                )
+
+            else:
+
+                client.chat_postMessage(
+                    channel=channel_id,
+                    text="No previous standup records found."
+                )
+
+            return JSONResponse({"status": "history_sent"})
+
+        # -------------------------
+        # SHOW HISTORY
+        # -------------------------
+
+        if text.lower() == "show my history":
+
+            history = get_user_history(user_id)
+
+            if not history:
+
+                client.chat_postMessage(
+                    channel=channel_id,
+                    text="No standup history found."
+                )
+
+                return JSONResponse({"status": "history_empty"})
+
+            response = "📊 Last Standups\n\n"
+
+            for item in history[-5:]:
+
+                response += (
+                    f"{item.get('date', 'Unknown Date')}\n"
+                    f"Work: {item.get('today_work', 'N/A')}\n"
+                    f"Blockers: {item.get('blockers', 'N/A')}\n"
+                    f"Support: {item.get('support', 'N/A')}\n\n"
+                )
+
+            client.chat_postMessage(
+                channel=channel_id,
+                text=response
+            )
+
+            return JSONResponse({"status": "history_sent"})
+
+        # -------------------------
         # OPEN AI ASSISTANT
+        # -------------------------
+
         if text.lower() == "launch ai assistant":
 
             assistant_url = (
@@ -161,13 +234,14 @@ async def slack_events(request: Request):
 
             return JSONResponse({"status": "assistant_sent"})
 
-        # FOLLOWUP AI
+        # -------------------------
+        # STANDUP CONVERSATION
+        # -------------------------
+
         reply = generate_followup_question(
             user_id=user_id,
             user_message=text
         )
-
-        save_user_message(user_id, text)
 
         client.chat_postMessage(
             channel=channel_id,
@@ -209,6 +283,7 @@ async def slack_interactions(request: Request):
         )
 
     else:
+
         reply = "Thanks for the update."
 
     client.chat_postMessage(
@@ -217,5 +292,3 @@ async def slack_interactions(request: Request):
     )
 
     return JSONResponse({"status": "ok"})
-
-

@@ -4,10 +4,13 @@ import google.generativeai as genai
 
 from dotenv import load_dotenv
 
-from app.memory import get_user_history
-from app.memory import save_user_message
-
-from app.prompts import SCRUM_MASTER_PROMPT
+from app.memory import (
+    start_session,
+    get_session,
+    update_session,
+    end_session,
+    save_standup_record
+)
 
 load_dotenv()
 
@@ -17,93 +20,83 @@ genai.configure(api_key=GEMINI_API_KEY)
 
 model = genai.GenerativeModel("gemini-2.5-flash")
 
-BLOCKER_KEYWORDS = [
-    "blocked",
-    "issue",
-    "stuck",
-    "error",
-    "failing",
-    "deployment",
-    "problem"
-]
-
 
 # ---------------------------------------------------
-# BLOCKER DETECTION
-# ---------------------------------------------------
-
-def detect_blocker(message):
-
-    lower_message = message.lower()
-
-    for keyword in BLOCKER_KEYWORDS:
-
-        if keyword in lower_message:
-            return True
-
-    return False
-
-
-# ---------------------------------------------------
-# SCRUM FOLLOWUP AI
+# SCRUM FOLLOWUP FLOW
 # ---------------------------------------------------
 
 def generate_followup_question(user_id, user_message):
 
-    history = get_user_history(user_id)
+    session = get_session(user_id)
 
-    developer_messages = [
-        msg for msg in history
-        if msg.startswith("Developer:")
-    ]
+    if not session:
 
-    question_count = len(developer_messages)
-
-    save_user_message(
-        user_id,
-        f"Developer: {user_message}"
-    )
-
-    # Question 1 completed
-    if question_count == 0:
-        reply = (
-            "Thanks. Do you have any blockers "
-            "or challenges currently?"
+        return (
+            "Please start a standup first by typing "
+            "'start standup'"
         )
 
-    # Question 2 completed
-    elif question_count == 1:
+    stage = session["stage"]
 
-        if detect_blocker(user_message):
+    # Question 1 answered
+    if stage == 1:
 
-            reply = (
-                "Understood. Please share the blocker "
-                "and I'll note it in today's standup."
-            )
+        update_session(
+            user_id,
+            "today_work",
+            user_message
+        )
 
-        else:
+        session["stage"] = 2
 
-            reply = (
-                "Great. Is there any support needed "
-                "from the team today?"
-            )
+        return (
+            "Do you have any blockers today?"
+        )
 
-    # Question 3 completed
-    else:
+    # Question 2 answered
+    elif stage == 2:
 
-        reply = (
+        update_session(
+            user_id,
+            "blockers",
+            user_message
+        )
+
+        session["stage"] = 3
+
+        return (
+            "Do you need any support from the team?"
+        )
+
+    # Question 3 answered
+    elif stage == 3:
+
+        update_session(
+            user_id,
+            "support",
+            user_message
+        )
+
+        save_standup_record(
+            user_id,
+            session["today_work"],
+            session["blockers"],
+            user_message
+        )
+
+        end_session(user_id)
+
+        return (
             "✅ Thanks for the update.\n\n"
-            "Your standup has been recorded.\n\n"
+            "Standup completed successfully.\n\n"
+            "Summary:\n"
+            f"• Work: {session['today_work']}\n"
+            f"• Blockers: {session['blockers']}\n"
+            f"• Support: {user_message}\n\n"
             "Have a productive day!"
         )
 
-    save_user_message(
-        user_id,
-        f"Bot: {reply}"
-    )
-
-    return reply
-
+    return "Standup completed."
 
 
 # ---------------------------------------------------
@@ -149,15 +142,12 @@ Requirement:
 
     text = response.text.strip()
 
-    # REMOVE markdown formatting
     text = text.replace("```json", "")
     text = text.replace("```", "")
 
     try:
 
-        parsed = json.loads(text)
-
-        return parsed
+        return json.loads(text)
 
     except Exception as e:
 
@@ -190,4 +180,3 @@ Return proper readable response.
     response = model.generate_content(prompt)
 
     return response.text.strip()
-
