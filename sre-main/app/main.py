@@ -52,7 +52,7 @@ app.mount(
 async def home():
 
     return RedirectResponse(
-        url="https://app.slack.com/client/T0B5TU4DY49/D0B5S5NQ8G2",
+        url="https://app.slack.com/client/T0B6UH16DK7/C0B6VSJPFK8",
         status_code=302
     )
 
